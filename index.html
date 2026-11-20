@@ -464,13 +464,16 @@ let S={screen:'hub',floor:1,level:1,xp:0,gold:30,crystals:0,materials:0,runItems
 function log(t){S.log.unshift(t);S.log=S.log.slice(0,40);renderLog()}
 function saveGame(){localStorage.setItem('bunpoGaidenSave',JSON.stringify(S));$('#saveState').textContent='保存済み ✓';}
 function loadGame(){try{let d=JSON.parse(localStorage.getItem('bunpoGaidenSave'));if(d)S={...S,...d}}catch(e){}}
-function normalizeSave(){S.equipment=S.equipment||{weapon:{name:'旅人の剣',atk:0},armor:{name:'布の服',def:0}};S.inventoryLimit=S.inventoryLimit||20;S.warehouse=Array.isArray(S.warehouse)?S.warehouse:[];S.runItems=Array.isArray(S.runItems)?S.runItems:[];}
+function normalizeSave(){S.bestFloor=Math.max(1,Number(S.bestFloor)||1,Number(S.floor)||1);S.equipment=S.equipment||{weapon:{name:'旅人の剣',atk:0},armor:{name:'布の服',def:0}};S.inventoryLimit=S.inventoryLimit||20;S.warehouse=Array.isArray(S.warehouse)?S.warehouse:[];S.runItems=Array.isArray(S.runItems)?S.runItems:[];}
 function renderLog(){$('#log').innerHTML=S.log.map(x=>`<p>${x}</p>`).join('')||'<span class="muted">まだ記録はありません。</span>'}
 function renderParty(){$('#party').innerHTML=S.party.map((p,i)=>`<div class="member"><strong><span>${p.name}</span><span class="pill">${i===0?'主人公':'前衛'}</span></strong><small>HP ${p.hp}/${p.maxHp}　MP ${p.mp}/${p.maxMp}</small><div class="hpbar"><span style="width:${Math.max(0,p.hp/p.maxHp*100)}%"></span></div></div>`).join('')+`<div class="muted">控え：${S.reserves.length}/8人</div>`}
 function renderAssets(){$('#assets').innerHTML=`<div class="row"><span>💰 ${S.gold}G</span><span>🔷 ${S.crystals}</span><span>🔮 ${S.specialCrystals||0} (+${S.runSpecialCrystals||0})</span><span>🧱 ${S.materials}</span></div><p class="muted">倉庫：${S.warehouse.length} / 30　装備：${S.equipment?.weapon?.name||'旅人の剣'}・${S.equipment?.armor?.name||'布の服'}<br>${[gaidenEffectSummary(S.equipment?.weapon),gaidenEffectSummary(S.equipment?.armor)].filter(Boolean).join(' / ')}</p>`}
 function render(){renderParty();renderAssets();renderLog();if(S.screen==='hub')hub();else if(S.screen==='dungeon')dungeon();else if(S.screen==='battle')battle();else if(S.screen==='gacha')gacha();else if(S.screen==='shop')shop();else if(S.screen==='status')status();else if(S.screen==='formation')formation();else if(S.screen==='inventory')inventory();else if(S.screen==='warehouse')warehouse();else if(S.screen==='loadout')equipmentRoom()}
 function gaidenBaseHub(){$('#main').innerHTML=`<h2>🏘️ 迷宮街アステラ</h2><div class="hero-art">${art('hero')} ${art('knight')} ${art('mage')} ${art('healer')}</div><p class="muted">迷宮の入口を中心に発展した小さな街。探索で得たものを持ち帰り、次の挑戦に備えよう。</p><div class="stats"><div class="stat"><b>${S.bestFloor||S.floor}</b><small>最高到達階層</small></div><div class="stat"><b>${S.level}</b><small>主人公Lv</small></div><div class="stat"><b>${S.party.length+S.reserves.length}</b><small>仲間</small></div><div class="stat"><b>${S.gold}G</b><small>所持金</small></div></div><div class="cards">
-<div class="card"><h3>🌀 迷宮入口</h3><p>毎回構造が変わる無限階層の迷宮へ。</p><button onclick="startRun()">探索に出発</button></div>
+<div class="card"><h3>🌀 迷宮入口</h3><p>毎回構造が変わる無限階層の迷宮へ。</p><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0">
+<label for="astera-floor-start" style="font-size:.9em">出発階層</label>
+<select id="astera-floor-start" style="min-width:125px;padding:10px;background:#102234;color:#f9e6bc;border:1px solid #b99a5e;border-radius:8px">${Array.from({length:Math.max(1,Math.floor(Number(S.bestFloor)||1),Math.floor(Number(S.floor)||1))},(_,i)=>`<option value="${i+1}" ${i+1===Math.max(1,Math.floor(Number(S.bestFloor)||1))?'selected':''}>第${i+1}階層</option>`).join('')}</select>
+</div><p class="muted" style="font-size:.8em">一度到達した階層から再挑戦できます。選んだ階層の敵の強さ・問題・報酬が適用されます。</p><button onclick="startRun(Number(document.getElementById('astera-floor-start')?.value||1))">選んだ階層から探索</button></div>
 <div class="card"><h3>✨ 召喚の間</h3><p>ひとつのガチャから仲間または特殊能力を獲得する。</p><button onclick="go('gacha')">召喚する</button></div>
 <div class="card"><h3>⚒️ 鍛冶・研究</h3><p>素材を使って主人公のスキルを強化する。</p><button onclick="openSkillResearch()">スキル研究（素材3）</button></div>
 <div class="card"><h3>🛒 道具屋</h3><p>回復薬など、探索に役立つ道具を購入。</p><button onclick="go('shop')">道具屋へ</button></div>
@@ -479,21 +482,75 @@ function gaidenBaseHub(){$('#main').innerHTML=`<h2>🏘️ 迷宮街アステラ
 <div class="card"><h3>📦 倉庫</h3><p>持ち帰った装備・素材を管理する場所。</p><button onclick="go('warehouse')">倉庫を確認</button></div>
 </div><p class="muted" style="margin-top:14px">探索中に全滅すると、今回の探索で得た経験値・素材・召喚石・アイテムをすべて失う。仲間と習得済みスキル、拠点資産は残る。</p>`}
 function go(s){S.screen=s;render()}
-function startRun(){S.screen='dungeon';S.floor=1;S.level=1;S.xp=0;S.runGold=0;S.runXp=0;S.runMat=0;S.runCrystal=0;S.runSpecialCrystals=0;S.runItems=[];S.equipment=S.equipment||{weapon:{name:'旅人の剣',atk:0},armor:{name:'布の服',def:0}};S.party.forEach(p=>{p.hp=p.maxHp;p.mp=p.maxMp});makeMap();log('迷宮に足を踏み入れた。');render()}
+function startRun(startFloor=1){
+ const unlocked=Math.max(1,Math.floor(Number(S.bestFloor)||1),Math.floor(Number(S.floor)||1));
+ const requested=Math.floor(Number(startFloor)||1);
+ if(!Number.isFinite(requested)||requested<1||requested>unlocked){
+  alert('未到達の階層には挑戦できません。');return;
+ }
+ S.bestFloor=Math.max(unlocked,Number(S.bestFloor)||1);
+ S.screen='dungeon';S.floor=requested;S.level=1;S.xp=0;S.runGold=0;S.runXp=0;S.runMat=0;S.runCrystal=0;S.runSpecialCrystals=0;S.runItems=[];S.equipment=S.equipment||{weapon:{name:'旅人の剣',atk:0},armor:{name:'布の服',def:0}};S.party.forEach(p=>{p.hp=p.maxHp;p.mp=p.maxMp});makeMap();log('迷宮に足を踏み入れた。');render()}
 const W=11,H=11;
 function gaidenBaseMakeMap(){S.map=Array.from({length:H},()=>Array(W).fill(0));for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++)S.map[y][x]=Math.random()>.22?1:0;for(let y=1;y<H-1;y++)S.map[y][5]=1;for(let x=1;x<W-1;x++)S.map[5][x]=1;S.map[5][5]=2;S.px=5;S.py=5;S.map[1][9]=3;let spots=[[2,2],[8,2],[2,8],[8,8],[9,5]];spots.forEach(([x,y])=>{if(Math.random()<.5)S.map[y][x]=4});S.seen=[];reveal()}
 function reveal(){for(let y=Math.max(0,S.py-2);y<=Math.min(H-1,S.py+2);y++)for(let x=Math.max(0,S.px-2);x<=Math.min(W-1,S.px+2);x++)S.seen.push(y*W+x)}
 function dungeon(){let cells='';const stageKey=['stage_ruins','stage_forest','stage_cave','stage_snow','stage_castle'][Math.min(4,Math.floor((S.floor-1)/3))];const tileBg=ART[stageKey];for(let y=0;y<H;y++)for(let x=0;x<W;x++){let v=S.map[y][x],seen=S.seen.includes(y*W+x),cl='hidden',sym='';if(seen){cl=v===0?'wall':v===1?'room':v===3?'stair':v===4?'treasure':'room';if(x===S.px&&y===S.py){cl='player';sym='🧭'}else if(v===3)sym='⬇️';else if(v===4)sym='🎁';else if(v===1&&Math.random()<0.035)sym='👾'}cells+=`<div class="tile ${cl}" style="--tile-bg:url('${tileBg}')">${x===S.px&&y===S.py?art('hero','avatar-img'):sym}</div>`}$('#main').innerHTML=`<h2>🌀 第${S.floor}階層</h2><div class="row"><span class="pill">探索Lv ${S.level}</span><span class="pill">EXP ${S.runXp}</span><span class="pill">素材 ${S.runMat}</span><span class="pill">召喚石 ${S.runCrystal}</span><span class="pill"></span></div><div class="mapwrap" style="margin-top:14px"><div class="map">${cells}</div><div><b>探索メニュー</b><p class="muted">移動：方向キー / WASD<br>階段：マスに乗って決定<br>帰還：🌀地点で決定／帰還の護符を使用</p><div class="controls"><span></span><button onclick="move(0,-1)">↑</button><span></span><button onclick="move(-1,0)">←</button><button onclick="interact()">決定</button><button onclick="move(1,0)">→</button><span></span><button onclick="move(0,1)">↓</button><span></span></div><button style="width:100%;margin-top:8px" onclick="useRunItem()">回復薬を使う</button><button style="width:100%;margin-top:8px" onclick="inventory()">🎒 持ち物を確認</button></div></div><p class="muted">探索中の所持品：${S.runItems.length}/${S.inventoryLimit}　｜　帰還地点または帰還アイテムで街に戻れる。</p>`}
 function move(dx,dy){if(S.screen!=='dungeon')return;let nx=S.px+dx,ny=S.py+dy;if(nx<0||ny<0||nx>=W||ny>=H||S.map[ny][nx]===0)return;S.px=nx;S.py=ny;reveal();let v=S.map[ny][nx];if(v===4){S.map[ny][nx]=1;let r=Math.random();if(r<.22){S.runMat++;log('宝箱から強化素材を見つけた。')}else if(r<.42){S.runCrystal++;asteraShowStoneReward(1,false);log('宝箱から召喚石を見つけた。')}else if(r<.70){addRunItem('回復薬');}else{addRunItem(makeLootGear());} }else if(v===3){log('階段を見つけた。決定キーで次の階へ進める。')}else if(Math.random()<.22)startBattle();render()}
 function interact(){if(S.map[S.py][S.px]===3){S.floor++;S.bestFloor=Math.max(S.bestFloor||1,S.floor);makeMap();log(`第${S.floor}階層へ進んだ。敵が強くなっていく。`);if(S.floor%5===0){log('節目の階層！ 守護者が現れた！');startBattle();return;}saveGame();render()}else log('周囲を調べた。');}
+
+// ASTERA ELEMENT SYSTEM v1 — fixed element for each catalog item and enemy.
+// 火→風→土→水→火, 光⇄闇. Weak hits x1.35, resisted hits x0.75.
+const ASTERA_ELEMENTS={
+ fire:{name:'炎',icon:'🔥',strong:'wind',weak:'water'},
+ water:{name:'水',icon:'💧',strong:'fire',weak:'earth'},
+ earth:{name:'土',icon:'🪨',strong:'water',weak:'wind'},
+ wind:{name:'風',icon:'🌪️',strong:'earth',weak:'fire'},
+ light:{name:'光',icon:'✨',strong:'dark',weak:'dark'},
+ dark:{name:'闇',icon:'🌑',strong:'light',weak:'light'},
+ neutral:{name:'無',icon:'⚪',strong:null,weak:null}
+};
+function asteraElementName(k){const e=ASTERA_ELEMENTS[k]||ASTERA_ELEMENTS.neutral;return e.icon+e.name;}
+function asteraGearElement(item){
+ if(!item)return 'neutral';
+ if(item.element&&ASTERA_ELEMENTS[item.element])return item.element;
+ const name=String(item.name||'');
+ const special=[[/炎|焔|紅蓮|火|烈火|白炎/,'fire'],[/氷|水|蒼波|流水|泡沫/,'water'],[/雷|風|嵐|疾風|天翔/,'wind'],[/岩|石|大地|樹|森|木|金剛/,'earth'],[/聖|光|星|白銀|暁|天穹/,'light'],[/闇|影|深淵|黒曜|月|宵/,'dark']];
+ for(const [re,key] of special)if(re.test(name))return key;
+ const list=item.kind==='armor'?GAIDEN_ITEM_ARMORS:GAIDEN_ITEM_WEAPONS;
+ const i=list.findIndex(x=>x[0]===name);
+ if(i<0)return 'neutral';
+ // Stable across saves: every item name always maps to the same element.
+ return ['fire','water','wind','earth','light','dark'][i%6];
+}
+function asteraEnemyElement(e){
+ if(!e)return 'neutral';
+ if(e.element&&ASTERA_ELEMENTS[e.element])return e.element;
+ const a=e.art||'';
+ if(e.boss)return ['fire','water','wind','earth','light','dark'][Math.max(0,Math.floor((S.floor||5)/5)-1)%6];
+ return ({enemy_wolf:'wind',enemy_goblin:'earth',enemy_slime:'water',enemy_skeleton:'dark',boss_dragon:'fire',boss_demon:'dark',boss_golem:'earth',boss_mage:'light'})[a]||'neutral';
+}
+function asteraElementMultiplier(attacker,defender){
+ if(!attacker||attacker==='neutral'||!defender||defender==='neutral')return 1;
+ if(ASTERA_ELEMENTS[attacker]?.strong===defender)return 1.35;
+ if(ASTERA_ELEMENTS[attacker]?.weak===defender)return .75;
+ return 1;
+}
+function asteraElementHit(base,attacker,defender,source){
+ const mult=asteraElementMultiplier(attacker,defender);
+ const damage=Math.max(1,Math.round(base*mult));
+ if(mult>1)log('属性弱点！ '+(source||'攻撃')+' '+asteraElementName(attacker)+' → '+asteraElementName(defender)+'（1.35倍）');
+ else if(mult<1)log('属性耐性！ '+asteraElementName(defender)+'が'+asteraElementName(attacker)+'を軽減（0.75倍）');
+ return damage;
+}
+function asteraElementLabel(it){return '属性：'+asteraElementName(asteraGearElement(it));}
+
 function startBattle(){let names=['迷宮ネズミ','石肌ゴブリン','迷い火','古代の番兵'];let icons=['🐀','👺','🔥','🗿'];let enemyArts=['enemy_wolf','enemy_goblin','enemy_slime','enemy_skeleton'];let i=Math.floor(Math.random()*names.length);let scale=1+S.floor*.12;const boss=S.floor%5===0;
 S.enemy=boss?{name:`第${S.floor}階層の守護者`,icon:'🐉',art:['boss_dragon','boss_demon','boss_golem','boss_mage'][Math.floor(S.floor/5-1)%4],hp:Math.round((75+S.floor*10)*scale),maxHp:Math.round((75+S.floor*10)*scale),atk:Math.round((7+S.floor*1.4)*scale),xp:30+S.floor*5}:{name:names[i],icon:icons[i],art:enemyArts[i],hp:Math.round((18+S.floor*3)*scale),maxHp:Math.round((18+S.floor*3)*scale),atk:Math.round((4+S.floor)*scale),xp:8+S.floor*2};
-if(boss)log('ボスの気配が濃くなる……守護者が立ちはだかった！');S.turn=0;S.awaken=0;S.command=0;S.screen='battle';log(`${S.enemy.name}が現れた！`);render()}
+S.enemy.element=asteraEnemyElement(S.enemy);if(boss)log('ボスの気配が濃くなる……守護者が立ちはだかった！');S.turn=0;S.awaken=0;S.command=0;S.screen='battle';log(`${S.enemy.name}が現れた！`);render()}
 function battle(){
  let e=S.enemy;
  const battleItems=S.runItems.map((it,i)=>({it,i})).filter(({it})=>typeof it==='object'&&it.itemType==='consumable'&&['heal','mp','revive','cure','cureAll','damage','escape','guard','buff','partyheal'].includes(it.type));
  const itemRows=battleItems.map(({it,i})=>`<button class="battle-item-btn" onclick="useBattleItem(${i})"><strong>${itemLabel(it)}</strong><small>${it.desc||'戦闘中に使用できる道具'}</small></button>`).join('');
- $('#main').innerHTML=`<h2>⚔️ 戦闘</h2><div class="battlebox"><div class="battle-stage" style="background-image:linear-gradient(#08132188,#081321aa),url('${ART[S.floor%5===0?'stage_cave':'stage_ruins']}')">${art('hero','hero-mini')}${art(gaidenCorrectEnemyArt(e))}</div><h3 style="text-align:center;margin:0">${e.name}</h3><div class="hpbar"><span style="width:${e.hp/e.maxHp*100}%"></span></div><small>敵HP ${e.hp}/${e.maxHp}</small></div><div class="stats"><div class="stat"><b>${S.awaken}%</b><small>覚醒ゲージ</small></div><div class="stat"><b>${S.command}%</b><small>指揮ゲージ</small></div><div class="stat"><b>${S.party[0].mp}</b><small>主人公MP</small></div><div class="stat"><b>${S.turn}</b><small>経過ターン</small></div></div><p class="muted">主人公の行動を選択。アイテムもターンを消費する。</p><div class="battleactions"><button onclick="heroAttack()">⚔️ 通常攻撃</button><button onclick="heroSkill()">✨ スキル（火球）</button><button onclick="commandSkill()">📣 指揮（MP3）</button><button onclick="awakenSkill()">🌟 覚醒技</button><button onclick="partyHeal()">🌿 回復（MP4）</button><button onclick="tryEscape()">🏃 逃走</button></div><section class="battle-items"><h3>🎒 消費アイテム（${battleItems.length}）</h3>${itemRows||'<p class="muted">戦闘中に使える消費アイテムがありません。</p>'}</section>`;
+ $('#main').innerHTML=`<h2>⚔️ 戦闘</h2><div class="battlebox"><div class="battle-stage" style="background-image:linear-gradient(#08132188,#081321aa),url('${ART[S.floor%5===0?'stage_cave':'stage_ruins']}')">${art('hero','hero-mini')}${art(gaidenCorrectEnemyArt(e))}</div><h3 style="text-align:center;margin:0">${e.name} <small style="font-size:.65em;color:#b9d5ec">${asteraElementName(asteraEnemyElement(e))}</small></h3><div class="hpbar"><span style="width:${e.hp/e.maxHp*100}%"></span></div><small>敵HP ${e.hp}/${e.maxHp}</small></div><div class="stats"><div class="stat"><b>${S.awaken}%</b><small>覚醒ゲージ</small></div><div class="stat"><b>${S.command}%</b><small>指揮ゲージ</small></div><div class="stat"><b>${S.party[0].mp}</b><small>主人公MP</small></div><div class="stat"><b>${S.turn}</b><small>経過ターン</small></div></div><p class="muted" style="font-size:.85em">属性相性：炎→風→土→水→炎／光⇄闇。弱点1.35倍・耐性0.75倍。武器は攻撃属性、防具は防御属性。</p><p class="muted">主人公の行動を選択。アイテムもターンを消費する。</p><div class="battleactions"><button onclick="heroAttack()">⚔️ 通常攻撃</button><button onclick="heroSkill()">✨ スキル（火球）</button><button onclick="commandSkill()">📣 指揮（MP3）</button><button onclick="awakenSkill()">🌟 覚醒技</button><button onclick="partyHeal()">🌿 回復（MP4）</button><button onclick="tryEscape()">🏃 逃走</button></div><section class="battle-items"><h3>🎒 消費アイテム（${battleItems.length}）</h3>${itemRows||'<p class="muted">戦闘中に使える消費アイテムがありません。</p>'}</section>`;
 }
 function useBattleItem(i){
  if(S.screen!=='battle'||!S.enemy||S.turnBusy)return;
@@ -591,15 +648,19 @@ function enemyTurn(){
     log(`${ally.name}の「${spec.name}」！`);
    }
   }else if(selected==='skill')log(`${ally.name}はMP不足のため通常攻撃に切り替えた。`);
-  if(damage>0){S.enemy.hp-=damage;log(`${ally.name}が${damage}ダメージを与えた。`);}
+  if(damage>0){damage=asteraElementHit(damage,asteraGearElement({name:ally.name,kind:'weapon'}),asteraEnemyElement(S.enemy),'仲間');S.enemy.hp-=damage;log(`${ally.name}が${damage}ダメージを与えた。`);}
  }
  if(S.enemy.hp<=0)return winBattle();
- let alive=S.party.filter(p=>p.hp>0);if(!alive.length)return wipe();let target=alive[Math.floor(Math.random()*alive.length)];let armorBonus=(S.equipment?.armor?.def||0)+(target.id==='hero'?gaidenEquippedEffect('def'):0);let dodgeBonus=target.id==='hero'?Math.max(0,Math.min(35,5+gaidenEquippedEffect('dodge')+gaidenEquippedEffect('spd')*2)):0;if(target.id==='hero'&&Math.random()*100<dodgeBonus){log(`${target.name}は装備の効果で攻撃をかわした！`);S.turn++;S.awaken=Math.min(100,S.awaken+10);S.command=Math.min(100,S.command+12);render();return;}let dmg=Math.max(1,S.enemy.atk-target.def-(target.id==='hero'?armorBonus:0));if(S.guard>0){const reduced=Math.min(dmg,S.guard);dmg-=reduced;S.guard=0;log(`守りの護符の効果で${reduced}ダメージ軽減！`);}target.hp=Math.max(0,target.hp-dmg);log(`${S.enemy.name}の攻撃！ ${target.name}に${dmg}ダメージ。`);if(target.hp===0)log(`${target.name}は戦闘不能になった！`);S.turn++;S.awaken=Math.min(100,S.awaken+10);S.command=Math.min(100,S.command+12);if(S.party[0].hp<=0)wipe();else render()}
+ let alive=S.party.filter(p=>p.hp>0);if(!alive.length)return wipe();let target=alive[Math.floor(Math.random()*alive.length)];let armorBonus=(S.equipment?.armor?.def||0)+(target.id==='hero'?gaidenEquippedEffect('def'):0);let dodgeBonus=target.id==='hero'?Math.max(0,Math.min(35,5+gaidenEquippedEffect('dodge')+gaidenEquippedEffect('spd')*2)):0;if(target.id==='hero'&&Math.random()*100<dodgeBonus){log(`${target.name}は装備の効果で攻撃をかわした！`);S.turn++;S.awaken=Math.min(100,S.awaken+10);S.command=Math.min(100,S.command+12);render();return;}let dmg=Math.max(1,S.enemy.atk-target.def-(target.id==='hero'?armorBonus:0));if(S.guard>0){const reduced=Math.min(dmg,S.guard);dmg-=reduced;S.guard=0;log(`守りの護符の効果で${reduced}ダメージ軽減！`);}if(target.id==='hero'){
+  const armorElement=asteraGearElement(S.equipment?.armor);
+  dmg=asteraElementHit(dmg,asteraEnemyElement(S.enemy),armorElement,'敵の攻撃');
+ }
+ target.hp=Math.max(0,target.hp-dmg);log(`${S.enemy.name}の攻撃！ ${target.name}に${dmg}ダメージ。`);if(target.hp===0)log(`${target.name}は戦闘不能になった！`);S.turn++;S.awaken=Math.min(100,S.awaken+10);S.command=Math.min(100,S.command+12);if(S.party[0].hp<=0)wipe();else render()}
 function heroAttack(){let h=S.party[0];let weapon=S.equipment?.weapon||{};let weaponBonus=(weapon.atk||0);let effectBonus=gaidenEquippedEffect('atk');let dmg=Math.max(1,h.atk+(S.weapon||0)+weaponBonus+effectBonus);let critBonus=5+gaidenEquippedEffect('crit');if(Math.random()*100<Math.max(0,critBonus)){dmg=Math.round(dmg*1.8);log('会心の一撃！');}S.enemy.hp-=dmg;
  const drain=gaidenEquippedEffect('drain');
  if(drain>0&&h.hp>0){const recovered=Math.min(drain,Math.max(0,h.maxHp-h.hp));h.hp+=recovered;if(recovered)log('装備の吸収効果でHP'+recovered+'回復。');}
  S.awaken=Math.min(100,S.awaken+15);log(`主人公の攻撃！ ${S.enemy.name}に${dmg}ダメージ。`);enemyTurn()}
-function heroSkill(){let h=S.party[0];if(h.mp<4){log('MPが足りない。');render();return}h.mp-=4;S.enemy.hp-=16+S.level;S.awaken=Math.min(100,S.awaken+20);log('火球！ 敵に大きなダメージ。');enemyTurn()}
+function heroSkill(){let h=S.party[0];if(h.mp<4){log('MPが足りない。');render();return}h.mp-=4;S.enemy.hp-=asteraElementHit(16+S.level,'fire',asteraEnemyElement(S.enemy),'火球');S.awaken=Math.min(100,S.awaken+20);log('火球！ 敵に大きなダメージ。');enemyTurn()}
 function commandSkill(){let h=S.party[0];if(h.mp<3){log('MPが足りない。');render();return}h.mp-=3;S.party.forEach(p=>p.atk+=2);log('全体号令！ 仲間の攻撃力が一時的に上昇。');enemyTurn()}
 function awakenSkill(){if(S.awaken<100){log('覚醒ゲージが足りない。');render();return}S.awaken=0;let dmg=30+S.level*3;S.enemy.hp-=dmg;log(`主人公が覚醒！ 必殺の一撃で${dmg}ダメージ！`);enemyTurn()}
 function partyHeal(){let h=S.party[0];if(h.mp<4){log('MPが足りない。');render();return}let p=S.party.slice(1).find(x=>x.hp>0&&x.hp<x.maxHp);if(!p){log('回復が必要な仲間はいない。');render();return}h.mp-=4;p.hp=Math.min(p.maxHp,p.hp+18);log(`${p.name}のHPを回復した。`);enemyTurn()}
@@ -1275,7 +1336,11 @@ function toggleBattleItems(){
  panel.style.display=panel.style.display==='none'?'block':'none';
 }
 function interact(){if(S.playerUnderTile===6||(S.returnPoint&&S.px===S.returnPoint.x&&S.py===S.returnPoint.y)){returnHub('point');return;}if(S.playerUnderTile===3||S.map[S.py][S.px]===3){S.floor++;S.bestFloor=Math.max(S.bestFloor||1,S.floor);makeMap();log(`第${S.floor}階層へ進んだ。敵が強くなっていく。`);if(S.floor%5===0){log('節目の階層！ 守護者が現れた！');startBattle();return;}saveGame();render();}else log('階段の上に立ってから決定しよう。');}
-function startRun(){S.screen='dungeon';S.floor=1;S.level=1;S.xp=0;S.runGold=0;S.runXp=0;S.runMat=0;S.runCrystal=0;S.runSpecialCrystals=0;S.runItems=[];S.pendingMapEnemy=null;S.turnBusy=false;S.equipment=S.equipment||{weapon:{name:'旅人の剣',atk:0},armor:{name:'布の服',def:0}};S.party.forEach(p=>{p.hp=p.maxHp;p.mp=p.maxMp;p.status=null;p.statusTurns=0});makeMap();log('迷宮に足を踏み入れた。敵の位置を見極め、1マスずつ進もう。');saveGame();render();}
+function startRun(startFloor=1){
+ const maxFloor=Math.max(1,Math.floor(Number(S.bestFloor)||1));
+ const chosen=Math.floor(Number(startFloor));
+ if(!Number.isFinite(chosen)||chosen<1||chosen>maxFloor){alert('未到達の階層は選べません。');return;}
+ S.screen='dungeon';S.floor=chosen;S.level=1;S.xp=0;S.runGold=0;S.runXp=0;S.runMat=0;S.runCrystal=0;S.runSpecialCrystals=0;S.runItems=[];S.pendingMapEnemy=null;S.turnBusy=false;S.equipment=S.equipment||{weapon:{name:'旅人の剣',atk:0},armor:{name:'布の服',def:0}};S.party.forEach(p=>{p.hp=p.maxHp;p.mp=p.maxMp;p.status=null;p.statusTurns=0});makeMap();log('迷宮に足を踏み入れた。敵の位置を見極め、1マスずつ進もう。');saveGame();render();}
 function gaidenRenderRecords(){
  gaidenEnsureRecords();const rows=Object.entries(S.records.defeated).map(([id,n])=>{const e=GAIDEN_V090_ENEMIES.find(x=>x.id===id);return `<div class="member"><b>${e?.name||id}</b><small>討伐数 ${n}</small></div>`;}).join('');
  $('#main').innerHTML=`<h2>📚 魔物図鑑・冒険記録</h2><div class="stats"><div class="stat"><b>${Object.values(S.records.defeated).reduce((a,b)=>a+b,0)}</b><small>総討伐数</small></div><div class="stat"><b>${S.records.bosses}</b><small>守護者討伐</small></div><div class="stat"><b>${S.records.treasures}</b><small>宝箱発見</small></div><div class="stat"><b>${S.records.correct}/${S.records.correct+S.records.wrong}</b><small>文法正解数</small></div></div><h3>討伐記録</h3><div class="cards">${rows||'<p class="muted">まだ討伐記録がありません。迷宮で魔物と戦おう。</p>'}</div><button onclick="go('hub')">街に戻る</button>`;
@@ -1375,7 +1440,11 @@ function gaidenBaseHub(){
    <div class="town-intro"><div class="town-eyebrow">THE GATEWAY TO THE ABYSS</div><h2>迷宮街アステラ</h2><p>迷宮へ挑む冒険者たちが集う街。準備を整え、仲間とともに深淵へ。</p></div>
    <div class="town-party-panel"><div class="town-party-label">現在のパーティ</div><div class="town-party-strip">${members||'<p class="muted">現在の仲間はいません。</p>'}</div></div>
    <div class="town-menu-grid cards">
-    <div class="card town-menu-card town-menu-dungeon"><div class="town-menu-icon">⚔</div><h3>迷宮入口</h3><p>毎回構造が変わる無限階層の迷宮へ。</p><button onclick="startRun()">探索に出発</button></div>
+    <div class="card town-menu-card town-menu-dungeon"><div class="town-menu-icon">⚔</div><h3>迷宮入口</h3><p>毎回構造が変わる無限階層の迷宮へ。</p>
+<label for="astera-real-floor-select" style="display:block;margin:12px 0 6px;color:#e7d4a3">出発する階層を選択</label>
+<select id="astera-real-floor-select" style="display:block;width:100%;box-sizing:border-box;padding:12px;margin-bottom:12px;border:1px solid #b89c61;border-radius:9px;background:#102334;color:#fff1d5;font-size:1em">${Array.from({length:Math.min(999,Math.max(1,Math.floor(Number(S.bestFloor)||1)))},(_,i)=>`<option value="${i+1}" ${i+1===Math.max(1,Math.floor(Number(S.bestFloor)||1))?'selected':''}>第${i+1}階層</option>`).join('')}</select>
+<p style="font-size:.78em;color:#bdcbd8">最高到達：第${Math.max(1,Number(S.bestFloor)||1)}階層。到達済みの階層から再挑戦できるで。</p>
+<button onclick="startRun(Number(document.getElementById('astera-real-floor-select')?.value||1))">選んだ階層から探索</button></div>
     <div class="card town-menu-card"><div class="town-menu-icon">✦</div><h3>召喚の間</h3><p>ひとつのガチャから仲間または特殊能力を獲得する。</p><button onclick="go('gacha')">召喚する</button></div>
     <div class="card town-menu-card"><div class="town-menu-icon">📖</div><h3>主人公の技</h3><p>発見した技を最大6つまで装備。</p><button onclick="go('status')">スキル確認</button></div>
     <div class="card town-menu-card"><div class="town-menu-icon">▣</div><h3>倉庫</h3><p>持ち帰った装備・素材を管理する。</p><button onclick="go('warehouse')">倉庫を確認</button></div>
@@ -1905,7 +1974,7 @@ function gaidenShowLootEffect(item){
  setTimeout(()=>{overlay.classList.remove('show');setTimeout(()=>overlay.remove(),280);},duration);
 }
 function gaidenIsGear(it){return !!it&&(it.kind==='weapon'||it.kind==='armor');}
-function gaidenItemDetail(it){if(typeof it==='string')return it==='回復薬'?'HPを20回復':'探索用アイテム';const base=it.desc|| (gaidenIsGear(it)?(it.kind==='weapon'?`攻撃 +${it.atk||0}`:`防御 +${it.def||0}`):it.itemType==='skill'?`スキル「${it.skill}」を習得`:'探索用アイテム');const affix=gaidenEffectSummary(it);return affix&&!base.includes(affix)?base+' / '+affix:base;}
+function gaidenItemDetail(it){if(typeof it==='string')return it==='回復薬'?'HPを20回復':'探索用アイテム';const base=it.desc|| (gaidenIsGear(it)?(it.kind==='weapon'?`攻撃 +${it.atk||0}`:`防御 +${it.def||0}`):it.itemType==='skill'?`スキル「${it.skill}」を習得`:'探索用アイテム');const affix=gaidenEffectSummary(it);const desc=affix&&!base.includes(affix)?base+' / '+affix:base;return gaidenIsGear(it)?desc+' / '+asteraElementLabel(it):desc;}
 // Ver.1.0.7: 装備ランダム付加効果。正負両方があり、装備ごとに個体差を持つ。
 const GAIDEN_GEAR_AFFIXES=[
  {key:'atk',label:'攻撃力上昇',min:1,max:3,weight:15},{key:'atk',label:'攻撃力下降',min:-3,max:-1,weight:7},
@@ -1959,7 +2028,7 @@ function gaidenDropItem(){
   const tier=Math.min(5,1+Math.floor(((S.floor||1)-1)/20));
   const eligible=pool.filter(x=>{const wi=GAIDEN_ITEM_WEAPONS.findIndex(v=>v[0]===x.name),ai=GAIDEN_ITEM_ARMORS.findIndex(v=>v[0]===x.name);return wi>=0?wi<Math.min(100,tier*20):ai>=0?ai<Math.min(100,tier*20):false;});
   const gear=eligible.length?eligible:pool;
-  const found={...gear[Math.floor(Math.random()*gear.length)]};
+  const found={...gear[Math.floor(Math.random()*gear.length)]};found.element=asteraGearElement(found);
   found.effects=gaidenRollGearEffects();
   if(found.effects.length)found.desc+=' / '+gaidenEffectSummary(found);
   addRunItem(found);return true;
@@ -2179,14 +2248,20 @@ function status(){const learned=S.learned||[],equipped=S.equipped||[];const rows
   };
 
   // 探索開始・帰還時に経験値やレベルを初期化／移し替えない。
-  startRun = function(){
-    S.screen='dungeon';S.floor=1;
+  startRun = function(startFloor=1){
+    const unlocked=Math.max(1,Math.floor(Number(S.bestFloor)||1),Math.floor(Number(S.floor)||1));
+    const chosen=Math.floor(Number(startFloor));
+    if(!Number.isFinite(chosen)||chosen<1||chosen>unlocked){
+      alert('未到達の階層には挑戦できません。');return;
+    }
+    S.bestFloor=unlocked;
+    S.screen='dungeon';S.floor=chosen;
     S.runGold=0;S.runMat=0;S.runCrystal=0;S.runSpecialCrystals=0;
     S.runItems=[];S.pendingMapEnemy=null;S.turnBusy=false;
     S.equipment=S.equipment||{weapon:{name:'旅人の剣',atk:0},armor:{name:'布の服',def:0}};
     S.party.forEach(p=>{p.hp=p.maxHp;p.mp=p.maxMp;p.status=null;p.statusTurns=0;});
     makeMap();
-    log('迷宮に足を踏み入れた。経験値とレベルは前回から引き継がれる。');
+    log('第'+S.floor+'階層から探索開始。経験値とレベルは引き継がれる。');
     saveGame();render();
   };
   returnHub = function(method){
