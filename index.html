@@ -149,11 +149,6 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px 0 24px}
 
 
 /* ===== Ver.0.9.2 cinematic title screen ===== */
-body.title-mode{background:#050a12;overflow-x:hidden}
-body.title-mode>header,body.title-mode>footer{display:none!important}
-body.title-mode #app{display:block;max-width:none;margin:0;padding:0;min-height:100vh}
-body.title-mode #main{min-height:100vh;border:0;border-radius:0;padding:0;overflow:hidden;background:#050a12}
-body.title-mode .right{display:none!important}
 .title-screen{position:relative;isolation:isolate;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#f4f0df;background:radial-gradient(ellipse at 50% 44%,#263a4a 0%,#101d2b 38%,#050a12 78%)}
 .title-screen:before{content:"";position:absolute;inset:0;z-index:-3;background:linear-gradient(180deg,#06101b44,#06101b99),radial-gradient(ellipse at 50% 110%,#b17a3540,transparent 55%),repeating-linear-gradient(115deg,transparent 0 90px,#ffffff06 91px 92px)}
 .title-screen:after{content:"";position:absolute;inset:0;z-index:-2;opacity:.35;background-image:radial-gradient(#e8d7aa 1px,transparent 1px);background-size:53px 53px;mask-image:linear-gradient(transparent,#000 35%,#000 80%,transparent)}
@@ -437,8 +432,20 @@ body.title-mode #main{background:#030915!important}
 #astera-quick-status .aps-combat-stats,#astera-party-status .aps-combat-stats{margin-top:8px!important;padding-top:7px!important;gap:5px!important}
 #astera-quick-status .aps-stat,#astera-party-status .aps-stat{padding:3px 7px!important;font-size:11px!important}
 @media(max-width:540px){#astera-party-status .aps-card{padding:10px 12px!important}#astera-party-status .aps-metric{grid-template-columns:25px minmax(0,1fr) 58px!important;gap:5px!important}}
-</style></head>
-<body>
+</style><style id="astera-title-page-layout">
+body.title-mode{background:#050a12;overflow-x:hidden}
+body.title-mode > header,body.title-mode > footer,body.title-mode #app > .right,body.title-mode #manualSaveDock{display:none!important}
+body.title-mode #app{display:block!important;width:100%;max-width:none!important;margin:0!important;padding:0!important;min-height:100vh}
+body.title-mode #main{min-height:100vh;border:0!important;border-radius:0!important;padding:0!important;overflow:hidden;background:#030915}
+@supports selector(body:has(#main > .title-screen)){
+ body:has(#main > .title-screen) > header,body:has(#main > .title-screen) > footer,
+ body:has(#main > .title-screen) #app > .right,body:has(#main > .title-screen) #manualSaveDock{display:none!important}
+ body:has(#main > .title-screen) #app{display:block!important;width:100%;max-width:none!important;margin:0!important;padding:0!important}
+ body:has(#main > .title-screen) #main{min-height:100vh;border:0!important;border-radius:0!important;padding:0!important;overflow:hidden;background:#030915}
+}
+</style>
+</head>
+<body class="title-mode">
 <header><div><h1>文法ダンジョン</h1><div class="sub">深淵の迷宮 — Ver.1.1.0 ドロップ率調整</div></div><div class="row"><span id="saveState" class="sub">自動セーブ</span><button onclick="saveGame()">セーブ</button></div></header>
 <div id="app">
  <main id="main" class="panel"></main>
