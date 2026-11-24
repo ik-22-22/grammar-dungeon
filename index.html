@@ -1597,11 +1597,12 @@ function titleScreen(){
  <h1 class="title-logo"><span>文法</span><span>ダンジョン</span></h1>
  <div class="title-subtitle">— 深淵の迷宮 —</div><div class="title-rule"></div>
  <div class="title-tagline">知識を刃に。言葉を力に。<br>答えの先に、まだ見ぬ冒険がある。</div>
- <div class="title-actions"><button class="title-btn astera-title-start" onclick="enterGameTitle()"><span class="astera-btn-symbol">✧</span>${hasSave?'冒険を再開する':'冒険を始める'}<span class="astera-btn-arrow">›</span></button></div>
+ <div class="title-actions"><button type="button" class="title-btn astera-title-start"><span class="astera-btn-symbol">✧</span>${hasSave?'冒険を再開する':'冒険を始める'}<span class="astera-btn-arrow">›</span></button></div>
  <div class="title-note">GRAMMAR DUNGEON <span>◆</span> THE ENDLESS LABYRINTH</div>
  </div><div class="title-art-stage"><div class="title-seal">文</div><div class="astera-title-halo" aria-hidden="true"></div>${art('hero','title-hero-art')}</div></div>
  <div class="astera-title-bottom" aria-hidden="true"><span>✦</span><span>ASTERA / THE LOST WORDS</span><span>✦</span></div>
  </section>`;
+ document.querySelector('#main .astera-title-start')?.addEventListener('click',()=>enterGameTitle());
 }
 
 function enterGameTitle(){document.body.classList.remove('title-mode');S.screen='hub';render();}
@@ -2948,9 +2949,45 @@ setActiveAbility=function(skill){if(!(S.equipped||[]).includes(skill)){log('先�
 
   // タイトルから再開したとき、探索・戦闘中ならホームへ戻さず保存地点を再現。
   enterGameTitle=function(){
-    document.body.classList.remove('title-mode');
-    if(!['dungeon','battle'].includes(S.screen))S.screen='hub';
-    render();
+    const savedScreen=S.screen;
+    try{
+      if(!['dungeon','battle'].includes(savedScreen))S.screen='hub';
+      if(S.screen==='dungeon'||S.screen==='battle'){
+        const usableMap=S.map.length>=H&&S.map.slice(0,H).every(row=>Array.isArray(row)&&row.length>=W)
+          &&Number.isInteger(S.px)&&Number.isInteger(S.py)
+          &&S.px>=0&&S.px<W&&S.py>=0&&S.py<H;
+        if(!usableMap||(S.screen==='battle'&&!S.enemy))throw new Error('Incomplete exploration save');
+      }
+      document.body.classList.remove('title-mode');
+      render();
+      return true;
+    }catch(error){
+      console.error('Unable to resume adventure',error);
+      S.screen=savedScreen;
+      titleScreen();
+      const actions=document.querySelector('#main .title-actions');
+      if(!actions)return;
+      const message=document.createElement('p');
+      message.setAttribute('role','alert');
+      if(!['dungeon','battle'].includes(savedScreen)){
+        message.textContent='街の画面を開けませんでした。';
+        actions.append(message);
+        return false;
+      }
+      message.textContent='保存地点を開けませんでした。街から再開すると、レベル・装備・仲間は引き継ぎ、探索途中の報酬は失われます。';
+      const recovery=document.createElement('button');
+      recovery.type='button';
+      recovery.className='title-btn';
+      recovery.textContent='街から再開する';
+      recovery.addEventListener('click',()=>{
+        const interruptedRun={...S};
+        Object.assign(S,{screen:'hub',enemy:null,pendingMapEnemy:null,turnBusy:false,allyQueue:[],
+          runGold:0,runMat:0,runCrystal:0,runSpecialCrystals:0,runItems:[],returnPoint:null});
+        if(!enterGameTitle())S=interruptedRun;
+      },{once:true});
+      actions.append(message,recovery);
+      return false;
+    }
   };
 
   window.addEventListener('beforeunload',()=>{try{saveGame('auto-close');}catch(e){}});
